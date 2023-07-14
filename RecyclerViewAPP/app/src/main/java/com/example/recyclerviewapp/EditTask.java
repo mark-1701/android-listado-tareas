@@ -3,7 +3,10 @@ package com.example.recyclerviewapp;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.ContentValues;
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -22,21 +25,21 @@ import java.util.List;
 import java.util.Random;
 
 public class EditTask extends AppCompatActivity {
-
-    private List<Task> dataList;
-
     Button btnBack;
     Button btnDelete;
     Button btnEdit;
     ImageButton btnImage;
     EditText txtTitle;
     EditText txtDescription;
-
     CheckBox chkCompleted;
-
     Bitmap bitmap;
-
+    int id;
     int newNameImage = -1;
+
+    private DatabaseHelper databaseHelper;
+    private SQLiteDatabase database;
+
+    DatabaseSingleton databaseSingleton = DatabaseSingleton.getInstance();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,24 +54,13 @@ public class EditTask extends AppCompatActivity {
         txtTitle = findViewById(R.id.txtTitle);
         txtDescription = findViewById(R.id.txtDescription);
         chkCompleted = findViewById(R.id.chkCompleted);
-        dataList = TaskListSingleton.getInstance().getTaskList();
-        int position = TaskListSingleton.getInstance().getSelectedCard();
+        id = databaseSingleton.getSelectedCard();
 
-        //CARGAR INFORMACION
-        txtTitle.setText(dataList.get(position).getTitle());
-        txtDescription.setText(dataList.get(position).getDescription());
-        boolean completed = dataList.get(position).getCompleted();
-        if (completed) {
-            chkCompleted.setChecked(true);
-        } else {
-            chkCompleted.setChecked(false);
-        }
+        //INSTANCIA SQLITE
+        databaseHelper = new DatabaseHelper(this);
+        database = databaseHelper.getWritableDatabase();
 
-        int nameImage = dataList.get(position).getImage();
-
-        File file = new File(getFilesDir(), Integer.toString(nameImage) + ".png");
-        Uri imageUri = Uri.fromFile(file);
-        btnImage.setImageURI(imageUri);
+        loadInformation();
 
         btnImage.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -76,7 +68,6 @@ public class EditTask extends AppCompatActivity {
                 uploadImage();
             }
         });
-
 
         //REGRESAR
         btnBack.setOnClickListener(new View.OnClickListener() {
@@ -91,8 +82,7 @@ public class EditTask extends AppCompatActivity {
         btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Task taskToRemove = TaskListSingleton.getInstance().getTaskList().get(position);
-                TaskListSingleton.getInstance().removeTask(taskToRemove);
+                deleteTask(id);
                 Intent intent = new Intent(EditTask.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -105,20 +95,61 @@ public class EditTask extends AppCompatActivity {
                 String newTitle = txtTitle.getText().toString();
                 String newDescription = txtDescription.getText().toString();
                 Boolean newCompleted = chkCompleted.isChecked();
-                //IMAGEN
+
                 if (newNameImage!=-1) {
                     saveImage(bitmap, newNameImage);
-                    TaskListSingleton.getInstance().getTaskList().get(position).setImage(newNameImage);
                 }
-                TaskListSingleton.getInstance().getTaskList().get(position).setTitle(newTitle);
-                TaskListSingleton.getInstance().getTaskList().get(position).setDescription(newDescription);
-                TaskListSingleton.getInstance().getTaskList().get(position).setCompleted(newCompleted);
+                updateTask(newTitle, newDescription, newNameImage, newCompleted);
 
                 Intent intent = new Intent(EditTask.this, MainActivity.class);
                 startActivity(intent);
-
             }
         });
+    }
+
+    //CARGAR LA INFORMACION EN EL ACTIVITY
+    private void loadInformation() {
+        String[] projection = {DatabaseHelper.COLUMN_TITLE, DatabaseHelper.COLUMN_DESCRIPTION, DatabaseHelper.COLUMN_COMPLETED, DatabaseHelper.COLUMN_IMAGE};
+        String selection = DatabaseHelper.COLUMN_ID + " = ?";
+        String[] selectionArgs = { String.valueOf(id) };
+        Cursor cursor = database.query(DatabaseHelper.TABLE_NAME, projection, selection, selectionArgs, null, null,null);
+        if (cursor.moveToFirst()) {
+            do {
+                String title = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TITLE));
+                String description = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_DESCRIPTION));
+                int image = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_IMAGE));
+                int completedInt = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_COMPLETED));
+                boolean completed = (completedInt != 0);
+
+                txtTitle.setText(title.toString());
+                txtDescription.setText(description.toString());
+
+                if (completed) {
+                    chkCompleted.setChecked(true);
+                } else {
+                    chkCompleted.setChecked(false);
+                }
+
+                File file = new File(getFilesDir(), Integer.toString(image) + ".png");
+                Uri imageUri = Uri.fromFile(file);
+                if (file.exists()) {
+                    btnImage.setImageURI(imageUri);
+                }
+
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+    }
+
+    private void updateTask(String newTitle, String newDescription, int newImage, Boolean newCompleted){
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_TITLE, newTitle);
+        values.put(DatabaseHelper.COLUMN_DESCRIPTION, newDescription);
+        if (newNameImage != -1) values.put(DatabaseHelper.COLUMN_IMAGE, newImage);
+        values.put(DatabaseHelper.COLUMN_COMPLETED, newCompleted);
+        String selection = DatabaseHelper.COLUMN_ID + "=?";
+        String[] selectionArgs={Integer.toString(id)};
+        database.update(databaseHelper.TABLE_NAME, values, selection, selectionArgs);
     }
 
     private void uploadImage() {
@@ -158,5 +189,11 @@ public class EditTask extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void deleteTask(int id){
+        String selection = DatabaseHelper.COLUMN_ID + "=?";
+        String[] selectionArgs = {Integer.toString(id)};
+        database.delete(DatabaseHelper.TABLE_NAME, selection, selectionArgs);
     }
 }

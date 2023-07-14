@@ -1,6 +1,8 @@
 package com.example.recyclerviewapp;
 
 public class Task {
+
+    int id;
     String title;
     String description;
 
@@ -12,11 +14,20 @@ public class Task {
 
     }
 
-    public Task(String title, String description, int image, Boolean completed) {
+    public Task(int id, String title, String description, int image, Boolean completed) {
+        this.id = id;
         this.title = title;
         this.description = description;
         this.image = image;
         this.completed = completed;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
     public String getTitle() {
@@ -49,15 +60,5 @@ public class Task {
 
     public void setCompleted(Boolean completed) {
         this.completed = completed;
-    }
-
-    @Override
-    public String toString() {
-        return "Task{" +
-                "title='" + title + '\'' +
-                ", description='" + description + '\'' +
-                ", image=" + image +
-                ", completed=" + completed +
-                '}';
     }
 }

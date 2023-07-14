@@ -3,7 +3,9 @@ package com.example.recyclerviewapp;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.ContentValues;
 import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -28,16 +30,25 @@ public class AddTask extends AppCompatActivity {
     EditText txtDescription;
     Bitmap bitmap;
 
+    private DatabaseHelper databaseHelper;
+    private SQLiteDatabase database;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_task);
 
+        //MAPEAR INFORMACION
         btnBack = findViewById(R.id.btnBack);
         btnAdd = findViewById(R.id.btnDelete);
         btnImage = findViewById(R.id.btnImage);
         txtTitle = findViewById(R.id.txtTitle);
         txtDescription = findViewById(R.id.txtDescription);
+
+        //INSTANCIA SQLITE
+        databaseHelper = new DatabaseHelper(this);
+        database = databaseHelper.getWritableDatabase();
+
         btnBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -49,15 +60,22 @@ public class AddTask extends AppCompatActivity {
         btnAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String title = txtTitle.getText().toString();
-                String description = txtDescription.getText().toString();
+                String title = txtTitle.getText().toString().trim();
+                String description = txtDescription.getText().toString().trim();
                 Random random = new Random();
                 int randomNumber = random.nextInt(900000000) + 1000000000;
-                Task newTask = new Task(title, description, randomNumber, false);
-                TaskListSingleton.getInstance().addTask(newTask);
-                saveImage(bitmap, randomNumber);
-                Intent intent = new Intent(AddTask.this, MainActivity.class);
-                startActivity(intent);
+                Task newTask = new Task(0, title, description, randomNumber, false);
+
+                if(!title.isEmpty()) {
+                    //GUARDAR INFORMACION
+                    if (bitmap != null) saveImage(bitmap, randomNumber);
+                    insertTask(newTask);
+                    //ABRIR ACTIVITY MAINACTIVITY
+                    Intent intent = new Intent(AddTask.this, MainActivity.class);
+                    startActivity(intent);
+                } else {
+                    Toast.makeText(AddTask.this, "Se necesita al menos un título", Toast.LENGTH_SHORT).show();
+                }
             }
         });
 
@@ -72,7 +90,7 @@ public class AddTask extends AppCompatActivity {
     private void uploadImage() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/");
-        startActivityForResult(intent.createChooser(intent,"Selecciona la aplicacion"), 10);
+        startActivityForResult(intent.createChooser(intent,"Selecciona la aplicación"), 10);
     }
 
     @Override
@@ -83,10 +101,10 @@ public class AddTask extends AppCompatActivity {
             try {
                 bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), path);
                 btnImage.setImageBitmap(bitmap);
-                Toast.makeText(this, "Imagen Cargada", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Imágen cargada con éxito", Toast.LENGTH_SHORT).show();
             } catch (IOException e) {
                 e.printStackTrace();
-                Toast.makeText(this, "Error al guardar la imagen", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Error al cargar la imágen", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -99,12 +117,18 @@ public class AddTask extends AppCompatActivity {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
             outputStream.flush();
             outputStream.close();
-            Toast.makeText(this, "Imagen Guardada", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Imágen guardada éxitosamente", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-
-
+    private void insertTask(Task newTask){
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_TITLE, newTask.title);
+        values.put(DatabaseHelper.COLUMN_DESCRIPTION, newTask.description);
+        values.put(DatabaseHelper.COLUMN_IMAGE, newTask.image);
+        values.put(DatabaseHelper.COLUMN_COMPLETED, newTask.completed);
+        database.insert(DatabaseHelper.TABLE_NAME, null, values);
+    }
 }
